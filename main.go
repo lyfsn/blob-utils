@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -38,12 +35,14 @@ func main() {
 			Action: DownloadApp,
 			Flags:  DownloadFlags,
 		},
+		/*
 		{
 			Name:   "proof",
 			Usage:  "generate kzg proof for any input point by using jth blob polynomial",
 			Action: ProofApp,
 			Flags:  ProofFlags,
 		},
+		*/
 	}
 
 	err := app.Run(os.Args)
@@ -128,7 +127,7 @@ func TxApp(cliCtx *cli.Context) error {
 		return fmt.Errorf("%w: invalid max_fee_per_blob_gas", err)
 	}
 
-	blobs, commitments, proofs, versionedHashes, err := EncodeBlobs(data)
+	blobs, commits, aggProof, versionedHashes, err := EncodeBlobs(data)
 	if err != nil {
 		log.Fatalf("failed to compute commitments: %v", err)
 	}
@@ -149,11 +148,17 @@ func TxApp(cliCtx *cli.Context) error {
 		Data:       calldataBytes,
 		BlobFeeCap: maxFeePerBlobGas256,
 		BlobHashes: versionedHashes,
+		Sidecar:    &types.BlobTxSidecar{Blobs: blobs, Commitments: commits, Proofs: aggProof},
 	})
-	signedTx, _ := types.SignTx(tx, types.NewCancunSigner(chainId), key)
-	txWithBlobs := types.NewBlobTxWithBlobs(signedTx, blobs, commitments, proofs)
+	signedTx, err := types.SignTx(tx, types.NewCancunSigner(chainId), key)
+	if err != nil {
+		log.Fatalf("failed to sign tx: %v", err)
+	}
 
-	rlpData, _ := txWithBlobs.MarshalBinary()
+	rlpData, err := signedTx.MarshalBinary()
+	if err != nil {
+		log.Fatalf("failed to marshal tx: %v", err)
+	}
 	err = client.Client().CallContext(context.Background(), nil, "eth_sendRawTransaction", hexutil.Encode(rlpData))
 
 	if err != nil {
@@ -164,7 +169,7 @@ func TxApp(cliCtx *cli.Context) error {
 
 	//var receipt *types.Receipt
 	for {
-		_, err = client.TransactionReceipt(context.Background(), txWithBlobs.Transaction.Hash())
+		_, err = client.TransactionReceipt(context.Background(), signedTx.Hash())
 		if err == ethereum.NotFound {
 			time.Sleep(1 * time.Second)
 		} else if err != nil {
@@ -182,6 +187,7 @@ func TxApp(cliCtx *cli.Context) error {
 	return nil
 }
 
+/*
 func ProofApp(cliCtx *cli.Context) error {
 	file := cliCtx.String(ProofBlobFileFlag.Name)
 	blobIndex := cliCtx.Uint64(ProofBlobIndexFlag.Name)
@@ -228,3 +234,4 @@ func ProofApp(cliCtx *cli.Context) error {
 		versionedHashes[blobIndex][:], x[:], claimedValue[:], commitments[blobIndex][:], proof[:], pointEvalInput[:])
 	return nil
 }
+*/
