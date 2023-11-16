@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -187,7 +190,6 @@ func TxApp(cliCtx *cli.Context) error {
 	return nil
 }
 
-/*
 func ProofApp(cliCtx *cli.Context) error {
 	file := cliCtx.String(ProofBlobFileFlag.Name)
 	blobIndex := cliCtx.Uint64(ProofBlobIndexFlag.Name)
@@ -210,7 +212,7 @@ func ProofApp(cliCtx *cli.Context) error {
 		return fmt.Errorf("wrong input point, len is %d", len(inputPoint))
 	}
 
-	ctx, _ := gokzg4844.NewContext4096Insecure1337()
+	ctx, _ := gokzg4844.NewContext4096Secure()
 	var x gokzg4844.Scalar
 	ip, _ := hex.DecodeString(inputPoint)
 	copy(x[:], ip)
@@ -234,4 +236,3 @@ func ProofApp(cliCtx *cli.Context) error {
 		versionedHashes[blobIndex][:], x[:], claimedValue[:], commitments[blobIndex][:], proof[:], pointEvalInput[:])
 	return nil
 }
-*/
