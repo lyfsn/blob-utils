@@ -39,12 +39,12 @@ func main() {
 			Flags:  DownloadFlags,
 		},
 		/*
-		{
-			Name:   "proof",
-			Usage:  "generate kzg proof for any input point by using jth blob polynomial",
-			Action: ProofApp,
-			Flags:  ProofFlags,
-		},
+			{
+				Name:   "proof",
+				Usage:  "generate kzg proof for any input point by using jth blob polynomial",
+				Action: ProofApp,
+				Flags:  ProofFlags,
+			},
 		*/
 	}
 
@@ -72,6 +72,22 @@ func TxApp(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("invalid value param: %v", err)
 	}
+
+	fileInfo, err := os.Stat(file)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return nil
+	}
+
+	fileSize := fileInfo.Size()
+	totalBlobs := fileSize / 131072
+	remainder := fileSize % 131072
+
+	if remainder > 0 {
+		totalBlobs += 1
+	}
+
+	fmt.Printf("File size is %d bytes and will be split into %d blobs of 128KB\n", fileSize, totalBlobs)
 
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -162,6 +178,10 @@ func TxApp(cliCtx *cli.Context) error {
 	if err != nil {
 		log.Fatalf("failed to marshal tx: %v", err)
 	}
+
+	fmt.Println("Dry-run: transaction was not sent")
+	return nil
+
 	err = client.Client().CallContext(context.Background(), nil, "eth_sendRawTransaction", hexutil.Encode(rlpData))
 
 	if err != nil {

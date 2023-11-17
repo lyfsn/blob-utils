@@ -2,9 +2,11 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -12,33 +14,54 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func encodeBlobs(data []byte) []kzg4844.Blob {
+// TODO: 8 blobs per tx
+func encodeBlobs(data []byte, magicHeader []byte) []kzg4844.Blob {
 	blobs := []kzg4844.Blob{{}}
 	blobIndex := 0
-	fieldIndex := -1
+	fieldIndex := 0
+	fmt.Printf("---- BEGIN OF BLOB %d -----\n", blobIndex)
+	copy(blobs[blobIndex][fieldIndex*32+1:], magicHeader)
+	fmt.Printf("%d %d %x || %d\n", 0, fieldIndex, magicHeader, magicHeader)
+	fieldIndex++
 	for i := 0; i < len(data); i += 31 {
-		fieldIndex++
 		if fieldIndex == params.BlobTxFieldElementsPerBlob {
 			blobs = append(blobs, kzg4844.Blob{})
 			blobIndex++
 			fieldIndex = 0
+			fmt.Printf("---- BEGIN OF BLOB %d -----\n", blobIndex)
 		}
 		max := i + 31
 		if max > len(data) {
 			max = len(data)
 		}
-		copy(blobs[blobIndex][fieldIndex*32:], data[i:max])
+		//fmt.Println(i, fieldIndex, data[i:max])
+		fmt.Printf("%d %d %x || %d\n", i, fieldIndex, data[i:max], data[i:max])
+		copy(blobs[blobIndex][fieldIndex*32+1:], data[i:max])
+		fieldIndex++
 	}
+	fmt.Println("Total blobs:", len(blobs))
 	return blobs
+}
+
+func generateMagicHeader() []byte {
+	randomBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(randomBytes, uint64(time.Now().UnixNano()))
+	magicHeader := append([]byte{66, 108, 111, 98, 115, 65, 114, 101, 67, 111, 109, 105, 110, 103}, randomBytes...)
+	magicHeader = append(magicHeader, []byte{45}...)
+	fmt.Printf("Magic header: %v\n", magicHeader)
+	return magicHeader
 }
 
 func EncodeBlobs(data []byte) ([]kzg4844.Blob, []kzg4844.Commitment, []kzg4844.Proof, []common.Hash, error) {
 	var (
-		blobs           = encodeBlobs(data)
 		commits         []kzg4844.Commitment
 		proofs          []kzg4844.Proof
 		versionedHashes []common.Hash
 	)
+
+	magicHeader := generateMagicHeader()
+	blobs := encodeBlobs(data, magicHeader)
+
 	for _, blob := range blobs {
 		commit, err := kzg4844.BlobToCommitment(blob)
 		if err != nil {
