@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"strings"
 	"time"
@@ -14,21 +15,42 @@ import (
 	"github.com/holiman/uint256"
 )
 
-// TODO: 8 blobs per tx
-func encodeBlobs(data []byte, magicHeader []byte) []kzg4844.Blob {
+// TODO: maximum is 8 blobs per tx
+// TODO: send multiple txs
+// TODO: max 255 blobs so that we can serialize it, That is ~32MB in total.
+// TODO: Calculate total cost of sending file (single or multipart)
+func encodeBlobs(data []byte, fileInfo fs.FileInfo) []kzg4844.Blob {
 	blobs := []kzg4844.Blob{{}}
 	blobIndex := 0
 	fieldIndex := 0
 	fmt.Printf("---- BEGIN OF BLOB %d -----\n", blobIndex)
-	copy(blobs[blobIndex][fieldIndex*32+1:], magicHeader)
+
+	fileSize := fileInfo.Size()
+	totalBlobs := fileSize / 131072
+	remainder := fileSize % 131072
+
+	if remainder > 0 {
+		totalBlobs += 1
+	}
+
+	fmt.Printf("File size is %d bytes and will be split into %d blobs of 128KB\n", fileSize, totalBlobs)
+
+	magicHeader := generateMagicHeader(blobIndex+1, totalBlobs)
+	copy(blobs[blobIndex][fieldIndex*32:], magicHeader)
 	fmt.Printf("%d %d %x || %d\n", 0, fieldIndex, magicHeader, magicHeader)
 	fieldIndex++
 	for i := 0; i < len(data); i += 31 {
+
 		if fieldIndex == params.BlobTxFieldElementsPerBlob {
 			blobs = append(blobs, kzg4844.Blob{})
 			blobIndex++
 			fieldIndex = 0
 			fmt.Printf("---- BEGIN OF BLOB %d -----\n", blobIndex)
+
+			magicHeader := generateMagicHeader(blobIndex+1, totalBlobs)
+			copy(blobs[blobIndex][fieldIndex*32:], magicHeader)
+			fmt.Printf("%d %d %x || %d\n", 0, fieldIndex, magicHeader, magicHeader)
+			fieldIndex++
 		}
 		max := i + 31
 		if max > len(data) {
@@ -43,24 +65,32 @@ func encodeBlobs(data []byte, magicHeader []byte) []kzg4844.Blob {
 	return blobs
 }
 
-func generateMagicHeader() []byte {
+// magicHeader is a 32 bytes array containing a string we use to identify files splitted in multiple blobs
+// plus blobIndex and totalBlobs
+func generateMagicHeader(blobIndex int, totalBlobs int64) []byte {
+
 	randomBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(randomBytes, uint64(time.Now().UnixNano()))
-	magicHeader := append([]byte{66, 108, 111, 98, 115, 65, 114, 101, 67, 111, 109, 105, 110, 103}, randomBytes...)
+	magicHeader := make([]byte, 32)
+	fmt.Printf("Len1: %d\n", len(magicHeader))
+
+	copy(magicHeader, []byte{66, 108, 111, 98, 115, 65, 114, 101, 67, 111, 109, 105, 110, 103, 46, 1, 46, byte(blobIndex), 46, byte(totalBlobs), 46, 46, 46, 46})
+	copy(magicHeader[24:], randomBytes)
 	magicHeader = append(magicHeader, []byte{45}...)
-	fmt.Printf("Magic header: %v\n", magicHeader)
+	fmt.Printf("Len4: %d\n", len(magicHeader))
+
+	fmt.Printf("Magic header (len=%d): %v\n", len(magicHeader), magicHeader)
 	return magicHeader
 }
 
-func EncodeBlobs(data []byte) ([]kzg4844.Blob, []kzg4844.Commitment, []kzg4844.Proof, []common.Hash, error) {
+func EncodeBlobs(data []byte, fileInfo fs.FileInfo) ([]kzg4844.Blob, []kzg4844.Commitment, []kzg4844.Proof, []common.Hash, error) {
 	var (
 		commits         []kzg4844.Commitment
 		proofs          []kzg4844.Proof
 		versionedHashes []common.Hash
 	)
 
-	magicHeader := generateMagicHeader()
-	blobs := encodeBlobs(data, magicHeader)
+	blobs := encodeBlobs(data, fileInfo)
 
 	for _, blob := range blobs {
 		commit, err := kzg4844.BlobToCommitment(blob)
