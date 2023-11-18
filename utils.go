@@ -47,7 +47,8 @@ func encodeBlobsWithMagicHeader(data []byte) []kzg4844.Blob {
 
 	blobIndex := 0
 	fieldIndex := 0
-	magicHeader := generateMagicHeader(blobIndex, totalBlobs)
+	seed := time.Now().UnixNano()
+	magicHeader := generateMagicHeader(blobIndex, totalBlobs, seed)
 	copy(blobs[blobIndex][fieldIndex*32:], magicHeader)
 	// fmt.Printf("%d %d %x || %d\n", 0, fieldIndex, magicHeader, magicHeader)
 	fieldIndex++
@@ -59,7 +60,7 @@ func encodeBlobsWithMagicHeader(data []byte) []kzg4844.Blob {
 			fieldIndex = 0
 			// fmt.Printf("---- BEGIN OF BLOB %d -----\n", blobIndex)
 
-			magicHeader := generateMagicHeader(blobIndex, totalBlobs)
+			magicHeader := generateMagicHeader(blobIndex, totalBlobs, seed)
 			copy(blobs[blobIndex][fieldIndex*32:], magicHeader)
 			// fmt.Printf("%d %d %x || %d\n", 0, fieldIndex, magicHeader, magicHeader)
 			fieldIndex++
@@ -100,17 +101,16 @@ func encodeBlobs(data []byte) []kzg4844.Blob {
 
 // magicHeader is a 32 bytes array containing a string we use to identify files splitted in multiple blobs
 // plus blobIndex and totalBlobs
-func generateMagicHeader(blobIndex, totalBlobs int) []byte {
+func generateMagicHeader(blobIndex, totalBlobs int, seed int64) []byte {
 
 	randomBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(randomBytes, uint64(time.Now().UnixNano()))
+	binary.LittleEndian.PutUint64(randomBytes, uint64(seed))
 	magicHeader := make([]byte, 32)
 
 	copy(magicHeader, []byte{66, 108, 111, 98, 115, 65, 114, 101, 67, 111, 109, 105, 110, 103, 46, 1, 46, byte(blobIndex), 46, byte(totalBlobs), 46, 46, 46, 46})
 	copy(magicHeader[24:], randomBytes)
-	//magicHeader = append(magicHeader, []byte{45}...)
 
-	fmt.Printf("Magic header (len=%d): %v\n", len(magicHeader), magicHeader)
+	//fmt.Printf("Magic header (len=%d): %v\n", len(magicHeader), magicHeader)
 	return magicHeader
 }
 
@@ -154,7 +154,6 @@ func EncodeMultipartBlob(blobChannel chan<- FullBlobStruct, data []byte, blobsPe
 		versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
 
 		if (blobIndex+1)%blobsPerTx == 0 {
-			fmt.Printf("%d MOD %d == %d\n", blobIndex+1, blobsPerTx, (blobIndex+1)%blobsPerTx)
 			sidecar := types.BlobTxSidecar{
 				Blobs:       blobs,
 				Commitments: commits,

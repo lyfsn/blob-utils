@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
+	"time"
 
 	"github.com/urfave/cli"
 )
@@ -18,69 +19,88 @@ type BlobResponse struct {
 }
 
 // TODO: Endpoint http para enviar blobs
-// TODO: Check full magic header plus randomness
-// TODO: Search in next slots until the end
-func GetMultiPartBlob(blobChannel chan<- []byte, addr, slot string) error {
-	fmt.Println("Retrieving multi-part blob from slot", slot)
-	apiURL := addr + "/eth/v1/beacon/blob_sidecars/" + slot
+// TODO: Join in one single file
+func GetMultiPartBlob(blobChannel chan<- []byte, addr string, initialSlot int) error {
 
-	resp, err := http.Get(apiURL)
-	if err != nil {
-		fmt.Println("Error making HTTP request:", err)
-		return err
-	}
-	defer resp.Body.Close()
+	var blobIndex, totalBlobs int
+	magicHeaderCustom := make([]byte, 8)
 
-	if resp.StatusCode != http.StatusOK {
-		fmt.Println("Received non-OK status code:", resp.StatusCode)
-		return err
-	}
+	slot := initialSlot
+	for {
+		//fmt.Printf("Retrieving multi-part blob from slot %d\n", slot)
+		apiURL := fmt.Sprintf("%s/eth/v1/beacon/blob_sidecars/%d", addr, slot)
 
-	var responseObject BlobResponse
-	err = json.NewDecoder(resp.Body).Decode(&responseObject)
-	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
-		return err
-	}
-
-	for idx, item := range responseObject.Data {
-		fmt.Println("Retrieving blob index", idx)
-		blobValue := item.Blob
-
-		if blobValue[0:30] != "0x426c6f6273417265436f6d696e67" {
-			fmt.Println("Blob number", idx, "does not contain magic header:", blobValue[0:30])
-			continue
-		}
-
-		hexBytes, err := hex.DecodeString(blobValue[2:])
+		resp, err := http.Get(apiURL)
 		if err != nil {
-			fmt.Println("Error decoding hex string:", err)
+			fmt.Println("Error making HTTP request:", err)
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			fmt.Println("Received non-OK status code:", resp.StatusCode)
 			return err
 		}
 
-		blobIndex := hexBytes[17]
-		totalBlobs := hexBytes[19]
-
-		//fmt.Printf("Magic header: %v\n", hexBytes[0:32])
-		//fmt.Printf("FULL BLOB:\n%v\n", hexBytes)
-
-		// if blobIndex == 0 {
-		// 	magicHeaderCustom = hexBytes[]
-		// }
-		cleanHexBytes := DecodeMagicBlob(hexBytes)
-
-		fmt.Printf("Received blob %d of %d with length=%d\n", blobIndex+1, totalBlobs, len(cleanHexBytes))
-
-		blobChannel <- cleanHexBytes
-
-		filename := slot + "-" + strconv.Itoa(idx) + ".bin"
-		err = os.WriteFile(filename, cleanHexBytes, 0644)
+		var responseObject BlobResponse
+		err = json.NewDecoder(resp.Body).Decode(&responseObject)
 		if err != nil {
-			fmt.Println("Error writing to file:", err)
+			fmt.Println("Error decoding JSON:", err)
 			return err
 		}
 
-		fmt.Printf("Hex bytes written to '%s' file successfully.\n", filename)
+		for _, item := range responseObject.Data {
+			// fmt.Println("Retrieving blob index", idx)
+			blobValue := item.Blob
+
+			if blobValue[0:30] != "0x426c6f6273417265436f6d696e67" {
+				//fmt.Println("Blob number", idx, "does not contain magic header:", blobValue[0:30])
+				continue
+			}
+
+			hexBytes, err := hex.DecodeString(blobValue[2:])
+			if err != nil {
+				fmt.Println("Error decoding hex string:", err)
+				return err
+			}
+
+			blobIndex = int(hexBytes[17])
+
+			if blobIndex == 0 {
+				totalBlobs = int(hexBytes[19])
+				copy(magicHeaderCustom, hexBytes[24:32])
+			} else {
+				if !bytes.Equal(magicHeaderCustom, hexBytes[24:32]) {
+					// SKIP
+					fmt.Println("Found blob with magic header but skipping because seed does not match.")
+					continue
+				}
+			}
+
+			//fmt.Printf("Magic header: %v\n", hexBytes[0:32])
+			//fmt.Printf("FULL BLOB:\n%v\n", hexBytes)
+
+			cleanHexBytes := DecodeMagicBlob(hexBytes)
+
+			fmt.Printf("[SLOT %d] Received blob %d of %d with size=%d\n", slot, blobIndex+1, totalBlobs, len(cleanHexBytes))
+
+			blobChannel <- cleanHexBytes
+
+			filename := fmt.Sprintf("%d-%d.bin", initialSlot, blobIndex)
+			err = os.WriteFile(filename, cleanHexBytes, 0644)
+			if err != nil {
+				fmt.Println("Error writing to file:", err)
+				return err
+			}
+
+			fmt.Printf("Hex bytes written to '%s' file successfully.\n", filename)
+		}
+
+		if blobIndex == totalBlobs {
+			fmt.Printf("%d blobs were retrieved in total\n", totalBlobs+1)
+			break
+		}
+		slot++
 	}
 
 	//fmt.Println("Total blobs in this slot:", len(responseObject.Data))
@@ -90,9 +110,10 @@ func GetMultiPartBlob(blobChannel chan<- []byte, addr, slot string) error {
 }
 
 func DownloadApp(cliCtx *cli.Context) error {
+	startTime := time.Now()
 
 	addr := cliCtx.String(DownloadBeaconRPCURLFlag.Name)
-	slot := cliCtx.String(DownloadSlotFlag.Name)
+	slot := cliCtx.Int(DownloadSlotFlag.Name)
 
 	blobChannel := make(chan []byte)
 
@@ -102,7 +123,8 @@ func DownloadApp(cliCtx *cli.Context) error {
 		select {
 		case _, ok := <-blobChannel:
 			if !ok {
-				fmt.Println("All blobs received.")
+				elapsedTime := time.Since(startTime)
+				fmt.Println("Operation took", elapsedTime)
 				return nil
 			}
 		}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 
 	"github.com/urfave/cli"
 )
@@ -23,16 +24,15 @@ Image: http://localhost:3333/stream/html?slot=129252
 */
 
 func streamHtmlHandler(w http.ResponseWriter, r *http.Request) {
-	//serveFile(w, r, []string{"126296-0.bin", "126296-1.bin", "126296-2.bin"}, "text/html")
 	serveBlob(w, r, "text/html")
 }
 
 func streamVideoHandler(w http.ResponseWriter, r *http.Request) {
-	serveFile(w, r, []string{"test_files/devconnect.mp4"}, "video/mp4")
+	serveBlob(w, r, "video/mp4")
 }
 
 func streamImageHandler(w http.ResponseWriter, r *http.Request) {
-	serveFile(w, r, []string{"test_files/DoD.jpg"}, "image/jpeg")
+	serveBlob(w, r, "image/jpeg")
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request, filePaths []string, contentType string) {
@@ -60,6 +60,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, filePaths []string, conte
 	}
 }
 
+// TODO: empty slot param
 func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 	w.Header().Set("Content-Type", contentType)
 	w.(http.Flusher).Flush()
@@ -70,9 +71,15 @@ func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 	addr := "http://10.128.0.8:5052"
 	slot := params.Get("slot")
 
+	slotNumber, err := strconv.Atoi(slot)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
 	blobChannel := make(chan []byte)
 
-	go GetMultiPartBlob(blobChannel, addr, slot)
+	go GetMultiPartBlob(blobChannel, addr, slotNumber)
 
 	fmt.Println("Waiting for blobChannel...")
 	for {

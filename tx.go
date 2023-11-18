@@ -20,6 +20,8 @@ import (
 )
 
 func MultiTxApp(cliCtx *cli.Context) error {
+	startTime := time.Now()
+
 	addr := cliCtx.String(TxRPCURLFlag.Name)
 	to := common.HexToAddress(cliCtx.String(TxToFlag.Name))
 	prv := cliCtx.String(TxPrivateKeyFlag.Name)
@@ -95,6 +97,8 @@ func MultiTxApp(cliCtx *cli.Context) error {
 
 	/** Magic comes down here **/
 
+	var totalBlobGasUsed uint64
+
 	blobChannel := make(chan FullBlobStruct)
 	go EncodeMultipartBlob(blobChannel, data, blobsPerTx)
 
@@ -102,6 +106,8 @@ func MultiTxApp(cliCtx *cli.Context) error {
 		select {
 		case blobStruct, ok := <-blobChannel:
 			if !ok {
+				elapsedTime := time.Since(startTime)
+				fmt.Printf("Operation took %s and costed %d BlobGas\n", elapsedTime, totalBlobGasUsed)
 				return nil
 			}
 
@@ -161,7 +167,8 @@ func MultiTxApp(cliCtx *cli.Context) error {
 				}
 			}
 
-			log.Printf("Transaction included. nonce=%d hash=%v, block=%d", nonce, tx.Hash(), receipt.BlockNumber.Int64())
+			log.Printf("Transaction included. nonce=%d hash=%v, block=%d, bloGasUsed=%d, blobGasPrice=%d", nonce, tx.Hash(), receipt.BlockNumber.Int64(), receipt.BlobGasUsed, receipt.BlobGasPrice)
+			totalBlobGasUsed += receipt.BlobGasUsed
 		}
 	}
 

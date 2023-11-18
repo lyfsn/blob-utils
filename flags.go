@@ -65,11 +65,11 @@ var (
 		Value: "0x",
 	}
 
-	// With 8 blobs per tx you can upload 1MB every 12 seconds
+	// With 6 blobs per tx you can upload 768KB every 12 seconds
 	MultiTxBlobsPerTx = cli.IntFlag{
 		Name:  "blobs-per-tx",
 		Usage: "Blobs per transaction",
-		Value: 8,
+		Value: 6,
 	}
 
 	DownloadBeaconRPCURLFlag = cli.StringFlag{
