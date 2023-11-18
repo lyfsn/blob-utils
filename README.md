@@ -1,16 +1,28 @@
-# Blob Utils
+# Blobtoss
 
-CLI for messing around with Proto-Danksharding blobs. To get started run:
+Made during Devconnect '23 @ Istanbul
+
+CLI for messing around with multi-part blobs. Based on blob-utils by Inphi.
+
+To get started run:
+
 ```
-git clone https://github.com/Inphi/blob-utils && cd blob-utils
+git clone https://github.com/PabloCastellano/blob-utils && cd blob-utils
 go build
 ./blob-utils -help
 ```
 
 ## Features
-- Creating and sending blob transactions
-- Download blobs sidecars
 
-Feel free to open an issue request for more features.
+- Upload multi-part blobs to beacon chain (`blob-utils tx`)
+- Retrieve multi-part blobs from beacon chain (`blob-utils download`)
+- Serve multi-part blobs from beacon chain (`blob-utils serve`)
 
-(thanks to @mdehoog for the initial implementation)
+```
+blob-utils tx --private-key PRIV_KEY --chain-id 7011893061 --priority-gas-price 6000000000 --gas-price 800000000000 --max-fee-per-blob-gas 70000000000 --rpc-url http://10.128.0.8:8545 --to 0x0000000000000000000000000000000000000000 --blob-file DoD.jpg
+./blob-utils download --slot 129252
+```
+
+## Credits
+
+* https://github.com/Inphi/blob-utils

@@ -23,7 +23,6 @@ func streamVideoHandler(w http.ResponseWriter, r *http.Request) {
 
 // https://blobscan.com/tx/0xd148b4fad7e559687855b87c78d13a81c9777dcb06313b641f8ffc72177c7c7b
 // http://localhost:3333/stream/html?slot=129252
-// sendblob DoD.jpg && ./blob-utils download --slot 129252
 func streamImageHandler(w http.ResponseWriter, r *http.Request) {
 	serveFile(w, r, []string{"DoD.jpg"}, "image/jpeg")
 }
