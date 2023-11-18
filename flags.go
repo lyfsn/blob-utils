@@ -65,6 +65,12 @@ var (
 		Value: "0x",
 	}
 
+	MultiTxBlobsPerTx = cli.IntFlag{
+		Name:  "blobs-per-tx",
+		Usage: "Blobs per transaction",
+		Value: 8,
+	}
+
 	DownloadBeaconRPCURLFlag = cli.StringFlag{
 		Name:  "rpc-url",
 		Usage: "Address of beacon node JSON-RPC endpoint",
@@ -112,6 +118,7 @@ var TxFlags = []cli.Flag{
 	TxMaxFeePerBlobGas,
 	TxChainID,
 	TxCalldata,
+	MultiTxBlobsPerTx,
 }
 
 var DownloadFlags = []cli.Flag{

@@ -25,6 +25,13 @@ func main() {
 	app.Commands = []cli.Command{
 		{
 			Name:   "tx",
+			Usage:  "send multipart blob (split in multiple transactions)",
+			Action: MultiTxApp,
+			Flags:  TxFlags,
+		},
+
+		{
+			Name:   "tx1",
 			Usage:  "send a blob transaction",
 			Action: TxApp,
 			Flags:  TxFlags,
@@ -165,9 +172,6 @@ func TxApp(cliCtx *cli.Context) error {
 	if err != nil {
 		log.Fatalf("failed to marshal tx: %v", err)
 	}
-
-	// fmt.Println("Dry-run: transaction was not sent")
-	// return nil
 
 	err = client.Client().CallContext(context.Background(), nil, "eth_sendRawTransaction", hexutil.Encode(rlpData))
 
