@@ -224,8 +224,34 @@ func kZGToVersionedHash(kzg kzg4844.Commitment) common.Hash {
 	return h
 }
 
+func DecodeMagicBlob(blob []byte) []byte {
+	if len(blob) != params.BlobTxFieldElementsPerBlob*32 {
+		fmt.Printf("len blob found: %d, expected: %d\n", len(blob), params.BlobTxFieldElementsPerBlob*32-33)
+		panic("invalid blob encoding")
+	}
+	var data []byte
+
+	// XXX: the following removes trailing 0s in each field element (see EncodeBlobs), which could be unexpected for certain blobs
+	// And skips the magic header
+	j := 33
+	for i := 1; i < params.BlobTxFieldElementsPerBlob; i++ {
+		data = append(data, blob[j:j+31]...)
+		j += 32
+	}
+
+	i := len(data) - 1
+	for ; i >= 0; i-- {
+		if data[i] != 0x00 {
+			break
+		}
+	}
+	data = data[:i+1]
+	return data
+}
+
 func DecodeBlob(blob []byte) []byte {
 	if len(blob) != params.BlobTxFieldElementsPerBlob*32 {
+		fmt.Printf("len blob found: %d, expected: %d\n", len(blob), params.BlobTxFieldElementsPerBlob*32)
 		panic("invalid blob encoding")
 	}
 	var data []byte

@@ -71,7 +71,6 @@ func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 	slot := params.Get("slot")
 
 	blobChannel := make(chan []byte)
-	doneChannel := make(chan struct{})
 
 	go GetMultiPartBlob(blobChannel, addr, slot)
 
@@ -80,18 +79,13 @@ func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 		select {
 		case result, ok := <-blobChannel:
 			if !ok {
-				fmt.Println("blobChannel is closed, break out of the loop")
+				fmt.Println("All blobs received.")
 				return
 			}
 			fmt.Println("Blob received through channel")
 
 			w.Write(result)
 			w.(http.Flusher).Flush()
-
-		case <-doneChannel:
-			// doneChannel is closed, exit the loop
-			fmt.Println("All results received.")
-			return
 		}
 	}
 }

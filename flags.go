@@ -65,6 +65,7 @@ var (
 		Value: "0x",
 	}
 
+	// With 8 blobs per tx you can upload 1MB every 12 seconds
 	MultiTxBlobsPerTx = cli.IntFlag{
 		Name:  "blobs-per-tx",
 		Usage: "Blobs per transaction",
