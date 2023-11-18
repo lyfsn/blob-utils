@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -37,6 +34,12 @@ func main() {
 			Usage:  "download blobs from the beacon net",
 			Action: DownloadApp,
 			Flags:  DownloadFlags,
+		},
+		{
+			Name:   "serve",
+			Usage:  "serve multi-part blobs on http",
+			Action: WebserverApp,
+			Flags:  WebserverFlags,
 		},
 		/*
 			{
@@ -78,16 +81,6 @@ func TxApp(cliCtx *cli.Context) error {
 		fmt.Println("Error:", err)
 		return nil
 	}
-
-	fileSize := fileInfo.Size()
-	totalBlobs := fileSize / 131072
-	remainder := fileSize % 131072
-
-	if remainder > 0 {
-		totalBlobs += 1
-	}
-
-	fmt.Printf("File size is %d bytes and will be split into %d blobs of 128KB\n", fileSize, totalBlobs)
 
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -146,7 +139,7 @@ func TxApp(cliCtx *cli.Context) error {
 		return fmt.Errorf("%w: invalid max_fee_per_blob_gas", err)
 	}
 
-	blobs, commits, aggProof, versionedHashes, err := EncodeBlobs(data)
+	blobs, commits, aggProof, versionedHashes, err := EncodeBlobs(data, fileInfo)
 	if err != nil {
 		log.Fatalf("failed to compute commitments: %v", err)
 	}
@@ -179,20 +172,21 @@ func TxApp(cliCtx *cli.Context) error {
 		log.Fatalf("failed to marshal tx: %v", err)
 	}
 
-	fmt.Println("Dry-run: transaction was not sent")
-	return nil
+	// fmt.Println("Dry-run: transaction was not sent")
+	// return nil
 
 	err = client.Client().CallContext(context.Background(), nil, "eth_sendRawTransaction", hexutil.Encode(rlpData))
 
 	if err != nil {
 		log.Fatalf("failed to send transaction: %v", err)
 	} else {
-		log.Printf("successfully sent transaction. txhash=%v", signedTx.Hash())
+		log.Printf("successfully sent transaction. Check https://blobscan.com/tx/%v", signedTx.Hash())
 	}
 
-	//var receipt *types.Receipt
+	var receipt *types.Receipt
+
 	for {
-		_, err = client.TransactionReceipt(context.Background(), signedTx.Hash())
+		receipt, err = client.TransactionReceipt(context.Background(), signedTx.Hash())
 		if err == ethereum.NotFound {
 			time.Sleep(1 * time.Second)
 		} else if err != nil {
@@ -205,11 +199,11 @@ func TxApp(cliCtx *cli.Context) error {
 		}
 	}
 
-	log.Printf("Transaction included. nonce=%d hash=%v", nonce, tx.Hash())
-	//log.Printf("Transaction included. nonce=%d hash=%v, block=%d", nonce, tx.Hash(), receipt.BlockNumber.Int64())
+	log.Printf("Transaction included. nonce=%d hash=%v, block=%d", nonce, tx.Hash(), receipt.BlockNumber.Int64())
 	return nil
 }
 
+/*
 func ProofApp(cliCtx *cli.Context) error {
 	file := cliCtx.String(ProofBlobFileFlag.Name)
 	blobIndex := cliCtx.Uint64(ProofBlobIndexFlag.Name)
@@ -256,3 +250,4 @@ func ProofApp(cliCtx *cli.Context) error {
 		versionedHashes[blobIndex][:], x[:], claimedValue[:], commitments[blobIndex][:], proof[:], pointEvalInput[:])
 	return nil
 }
+*/

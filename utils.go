@@ -19,21 +19,11 @@ import (
 // TODO: send multiple txs
 // TODO: max 255 blobs so that we can serialize it, That is ~32MB in total.
 // TODO: Calculate total cost of sending file (single or multipart)
-func encodeBlobs(data []byte, fileInfo fs.FileInfo) []kzg4844.Blob {
+func encodeBlobs(data []byte, totalBlobs int64) []kzg4844.Blob {
 	blobs := []kzg4844.Blob{{}}
 	blobIndex := 0
 	fieldIndex := 0
 	fmt.Printf("---- BEGIN OF BLOB %d -----\n", blobIndex)
-
-	fileSize := fileInfo.Size()
-	totalBlobs := fileSize / 131072
-	remainder := fileSize % 131072
-
-	if remainder > 0 {
-		totalBlobs += 1
-	}
-
-	fmt.Printf("File size is %d bytes and will be split into %d blobs of 128KB\n", fileSize, totalBlobs)
 
 	magicHeader := generateMagicHeader(blobIndex+1, totalBlobs)
 	copy(blobs[blobIndex][fieldIndex*32:], magicHeader)
@@ -90,7 +80,16 @@ func EncodeBlobs(data []byte, fileInfo fs.FileInfo) ([]kzg4844.Blob, []kzg4844.C
 		versionedHashes []common.Hash
 	)
 
-	blobs := encodeBlobs(data, fileInfo)
+	fileSize := fileInfo.Size()
+	totalBlobs := fileSize / 131072
+	remainder := fileSize % 131072
+
+	if remainder > 0 {
+		totalBlobs += 1
+	}
+	fmt.Printf("File size is %d bytes and will be split into %d blobs of 128KB\n", fileSize, totalBlobs)
+
+	blobs := encodeBlobs(data, totalBlobs)
 
 	for _, blob := range blobs {
 		commit, err := kzg4844.BlobToCommitment(blob)

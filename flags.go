@@ -65,15 +65,15 @@ var (
 		Value: "0x",
 	}
 
-	DownloadBeaconP2PAddr = cli.StringFlag{
-		Name:  "beacon-p2p-addr",
-		Usage: "P2P multiaddr of the beacon node",
-		Value: "/ip4/127.0.0.1/tcp/13000",
+	DownloadBeaconRPCURLFlag = cli.StringFlag{
+		Name:  "rpc-url",
+		Usage: "Address of beacon node JSON-RPC endpoint",
+		Value: "http://10.128.0.8:5052",
 	}
 	DownloadSlotFlag = cli.Int64Flag{
-		Name:     "slot",
-		Usage:    "Slot to download blob from",
-		Required: true,
+		Name:  "slot",
+		Usage: "Slot to download blob from",
+		Value: 125754,
 	}
 
 	ProofBlobFileFlag = cli.StringFlag{
@@ -90,6 +90,12 @@ var (
 		Name:     "input-point",
 		Usage:    "Input point of the proof",
 		Required: true,
+	}
+
+	WebserverRPCURLFlag = cli.StringFlag{
+		Name:  "rpc-url",
+		Usage: "Address of beacon node JSON-RPC endpoint",
+		Value: "http://10.128.0.8:5052",
 	}
 )
 
@@ -109,8 +115,12 @@ var TxFlags = []cli.Flag{
 }
 
 var DownloadFlags = []cli.Flag{
-	DownloadBeaconP2PAddr,
+	DownloadBeaconRPCURLFlag,
 	DownloadSlotFlag,
+}
+
+var WebserverFlags = []cli.Flag{
+	WebserverRPCURLFlag,
 }
 
 var ProofFlags = []cli.Flag{

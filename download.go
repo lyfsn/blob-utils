@@ -11,7 +11,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-type ResponseStruct struct {
+type BlobResponse struct {
 	Data []struct {
 		Blob string `json:"blob"`
 	} `json:"data"`
@@ -31,10 +31,9 @@ func removePairsOf00(hexString string) string {
 	return result
 }
 
-func DownloadApp(cliCtx *cli.Context) error {
-
-	slot := cliCtx.String(DownloadSlotFlag.Name)
-	apiURL := "http://10.128.0.8:5052/eth/v1/beacon/blob_sidecars/" + slot
+func GetMultiPartBlob(blobChannel chan<- []byte, doneChannel chan<- struct{}, addr, slot string) error {
+	fmt.Println("Retrieving multi-part blob from slot", slot)
+	apiURL := addr + "/eth/v1/beacon/blob_sidecars/" + slot
 
 	resp, err := http.Get(apiURL)
 	if err != nil {
@@ -48,7 +47,7 @@ func DownloadApp(cliCtx *cli.Context) error {
 		return err
 	}
 
-	var responseObject ResponseStruct
+	var responseObject BlobResponse
 	err = json.NewDecoder(resp.Body).Decode(&responseObject)
 	if err != nil {
 		fmt.Println("Error decoding JSON:", err)
@@ -56,6 +55,7 @@ func DownloadApp(cliCtx *cli.Context) error {
 	}
 
 	for idx, item := range responseObject.Data {
+		fmt.Println("Retrieving blob index", idx)
 		blobValue := item.Blob
 
 		if blobValue[0:30] != "0x426c6f6273417265436f6d696e67" {
@@ -73,6 +73,8 @@ func DownloadApp(cliCtx *cli.Context) error {
 			return err
 		}
 
+		blobChannel <- hexBytes
+
 		// Print the result
 		//fmt.Printf("%v", hexBytes)
 
@@ -87,5 +89,39 @@ func DownloadApp(cliCtx *cli.Context) error {
 	}
 
 	//fmt.Println("Total blobs in this slot:", len(responseObject.Data))
+
+	close(doneChannel)
 	return nil
+}
+
+func DownloadApp(cliCtx *cli.Context) error {
+
+	addr := cliCtx.String(DownloadBeaconRPCURLFlag.Name)
+	slot := cliCtx.String(DownloadSlotFlag.Name)
+
+	blobChannel := make(chan []byte)
+	doneChannel := make(chan struct{})
+
+	err := GetMultiPartBlob(blobChannel, doneChannel, addr, slot)
+	if err != nil {
+		fmt.Println("GetMultiPartBlob failed:", err)
+		return err
+	}
+
+	for {
+		select {
+		case result, ok := <-blobChannel:
+			if !ok {
+				// resultChannel is closed, break out of the loop
+				break
+			}
+			fmt.Println("Result:", result)
+
+		case <-doneChannel:
+			// doneChannel is closed, exit the loop
+			fmt.Println("All results received.")
+			return nil
+		}
+	}
+
 }
