@@ -4,22 +4,28 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"io/fs"
+	"log"
 	"math/big"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
 
+type FullBlobStruct struct {
+	Sidecar         types.BlobTxSidecar
+	VersionedHashes []common.Hash
+}
+
 // TODO: maximum is 8 blobs per tx
 // TODO: send multiple txs
 // TODO: max 255 blobs so that we can serialize it, That is ~32MB in total.
 // TODO: Calculate total cost of sending file (single or multipart)
-func encodeBlobs(data []byte, totalBlobs int64) []kzg4844.Blob {
+func encodeMultipartBlobs(data []byte, totalBlobs int64) []kzg4844.Blob {
 	blobs := []kzg4844.Blob{{}}
 	blobIndex := 0
 	fieldIndex := 0
@@ -55,6 +61,26 @@ func encodeBlobs(data []byte, totalBlobs int64) []kzg4844.Blob {
 	return blobs
 }
 
+func encodeBlobs(data []byte) []kzg4844.Blob {
+	blobs := []kzg4844.Blob{{}}
+	blobIndex := 0
+	fieldIndex := -1
+	for i := 0; i < len(data); i += 31 {
+		fieldIndex++
+		if fieldIndex == params.BlobTxFieldElementsPerBlob {
+			blobs = append(blobs, kzg4844.Blob{})
+			blobIndex++
+			fieldIndex = 0
+		}
+		max := i + 31
+		if max > len(data) {
+			max = len(data)
+		}
+		copy(blobs[blobIndex][fieldIndex*32+1:], data[i:max])
+	}
+	return blobs
+}
+
 // magicHeader is a 32 bytes array containing a string we use to identify files splitted in multiple blobs
 // plus blobIndex and totalBlobs
 func generateMagicHeader(blobIndex int, totalBlobs int64) []byte {
@@ -73,14 +99,8 @@ func generateMagicHeader(blobIndex int, totalBlobs int64) []byte {
 	return magicHeader
 }
 
-func EncodeBlobs(data []byte, fileInfo fs.FileInfo) ([]kzg4844.Blob, []kzg4844.Commitment, []kzg4844.Proof, []common.Hash, error) {
-	var (
-		commits         []kzg4844.Commitment
-		proofs          []kzg4844.Proof
-		versionedHashes []common.Hash
-	)
-
-	fileSize := fileInfo.Size()
+func EncodeMultipartBlob(blobChannel chan<- FullBlobStruct, doneChannel chan<- struct{}, data []byte) {
+	fileSize := len(data)
 	totalBlobs := fileSize / 131072
 	remainder := fileSize % 131072
 
@@ -89,24 +109,60 @@ func EncodeBlobs(data []byte, fileInfo fs.FileInfo) ([]kzg4844.Blob, []kzg4844.C
 	}
 	fmt.Printf("File size is %d bytes and will be split into %d blobs of 128KB\n", fileSize, totalBlobs)
 
-	blobs := encodeBlobs(data, totalBlobs)
+	if totalBlobs > 8 {
+		fmt.Printf("More than 8 blobs is supported at the moment")
+		close(blobChannel)
+		//close(doneChannel)
+		return
+	}
+
+	// blobChannel := make(chan FullBlobStruct)
+
+	// Split in 128KB - 32 bytes (magic header)
+	// 131072 - 32 = 131040 bytes
+	blobIndex := 0
+	for i := 0; i < len(data); i += 131040 {
+		chunk := data[i*blobIndex : i*blobIndex+131040]
+		sidecar, versionedHashes, err := EncodeBlobs(chunk)
+		if err != nil {
+			log.Fatalf("failed to compute commitments: %v", err)
+		}
+		blobStruct := FullBlobStruct{Sidecar: *sidecar, VersionedHashes: versionedHashes}
+		blobChannel <- blobStruct
+
+	}
+
+}
+
+func EncodeBlobs(data []byte) (*types.BlobTxSidecar, []common.Hash, error) {
+	var (
+		blobs           = encodeBlobs(data)
+		commits         []kzg4844.Commitment
+		proofs          []kzg4844.Proof
+		versionedHashes []common.Hash
+	)
 
 	for _, blob := range blobs {
 		commit, err := kzg4844.BlobToCommitment(blob)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		}
 		commits = append(commits, commit)
 
 		proof, err := kzg4844.ComputeBlobProof(blob, commit)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		}
 		proofs = append(proofs, proof)
 
 		versionedHashes = append(versionedHashes, kZGToVersionedHash(commit))
 	}
-	return blobs, commits, proofs, versionedHashes, nil
+	sidecar := types.BlobTxSidecar{
+		Blobs:       blobs,
+		Commitments: commits,
+		Proofs:      proofs,
+	}
+	return &sidecar, versionedHashes, nil
 }
 
 var blobCommitmentVersionKZG uint8 = 0x01

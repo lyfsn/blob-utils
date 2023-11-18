@@ -76,12 +76,6 @@ func TxApp(cliCtx *cli.Context) error {
 		return fmt.Errorf("invalid value param: %v", err)
 	}
 
-	fileInfo, err := os.Stat(file)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return nil
-	}
-
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return fmt.Errorf("error reading blob file: %v", err)
@@ -139,7 +133,7 @@ func TxApp(cliCtx *cli.Context) error {
 		return fmt.Errorf("%w: invalid max_fee_per_blob_gas", err)
 	}
 
-	blobs, commits, aggProof, versionedHashes, err := EncodeBlobs(data, fileInfo)
+	sidecar, versionedHashes, err := EncodeBlobs(data)
 	if err != nil {
 		log.Fatalf("failed to compute commitments: %v", err)
 	}
@@ -160,7 +154,7 @@ func TxApp(cliCtx *cli.Context) error {
 		Data:       calldataBytes,
 		BlobFeeCap: maxFeePerBlobGas256,
 		BlobHashes: versionedHashes,
-		Sidecar:    &types.BlobTxSidecar{Blobs: blobs, Commitments: commits, Proofs: aggProof},
+		Sidecar:    sidecar,
 	})
 	signedTx, err := types.SignTx(tx, types.NewCancunSigner(chainId), key)
 	if err != nil {

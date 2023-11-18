@@ -31,7 +31,7 @@ func removePairsOf00(hexString string) string {
 	return result
 }
 
-func GetMultiPartBlob(blobChannel chan<- []byte, doneChannel chan<- struct{}, addr, slot string) error {
+func GetMultiPartBlob(blobChannel chan<- []byte, addr, slot string) error {
 	fmt.Println("Retrieving multi-part blob from slot", slot)
 	apiURL := addr + "/eth/v1/beacon/blob_sidecars/" + slot
 
@@ -90,7 +90,7 @@ func GetMultiPartBlob(blobChannel chan<- []byte, doneChannel chan<- struct{}, ad
 
 	//fmt.Println("Total blobs in this slot:", len(responseObject.Data))
 
-	close(doneChannel)
+	close(blobChannel)
 	return nil
 }
 
@@ -100,9 +100,8 @@ func DownloadApp(cliCtx *cli.Context) error {
 	slot := cliCtx.String(DownloadSlotFlag.Name)
 
 	blobChannel := make(chan []byte)
-	doneChannel := make(chan struct{})
 
-	err := GetMultiPartBlob(blobChannel, doneChannel, addr, slot)
+	err := GetMultiPartBlob(blobChannel, addr, slot)
 	if err != nil {
 		fmt.Println("GetMultiPartBlob failed:", err)
 		return err
@@ -116,11 +115,6 @@ func DownloadApp(cliCtx *cli.Context) error {
 				break
 			}
 			fmt.Println("Result:", result)
-
-		case <-doneChannel:
-			// doneChannel is closed, exit the loop
-			fmt.Println("All results received.")
-			return nil
 		}
 	}
 

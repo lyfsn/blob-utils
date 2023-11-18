@@ -10,21 +10,29 @@ import (
 	"github.com/urfave/cli"
 )
 
-// http://localhost:3333/stream/html?slot=125754
+/*
+Some examples:
+
+Empty: http://localhost:3333/stream/html?slot=125751
+Hello world: http://localhost:3333/stream/html?slot=125753
+Html: http://localhost:3333/stream/html?slot=125754
+Video: // http://localhost:3333/stream/html?slot=125754
+
+Image: http://localhost:3333/stream/html?slot=129252
+	   https://blobscan.com/tx/0xd148b4fad7e559687855b87c78d13a81c9777dcb06313b641f8ffc72177c7c7b
+*/
+
 func streamHtmlHandler(w http.ResponseWriter, r *http.Request) {
 	//serveFile(w, r, []string{"126296-0.bin", "126296-1.bin", "126296-2.bin"}, "text/html")
 	serveBlob(w, r, "text/html")
 }
 
-// http://localhost:3333/stream/html?slot=125754
 func streamVideoHandler(w http.ResponseWriter, r *http.Request) {
-	serveFile(w, r, []string{"devconnect.mp4"}, "video/mp4")
+	serveFile(w, r, []string{"test_files/devconnect.mp4"}, "video/mp4")
 }
 
-// https://blobscan.com/tx/0xd148b4fad7e559687855b87c78d13a81c9777dcb06313b641f8ffc72177c7c7b
-// http://localhost:3333/stream/html?slot=129252
 func streamImageHandler(w http.ResponseWriter, r *http.Request) {
-	serveFile(w, r, []string{"DoD.jpg"}, "image/jpeg")
+	serveFile(w, r, []string{"test_files/DoD.jpg"}, "image/jpeg")
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request, filePaths []string, contentType string) {
@@ -53,7 +61,6 @@ func serveFile(w http.ResponseWriter, r *http.Request, filePaths []string, conte
 }
 
 func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
-	// Set the content type
 	w.Header().Set("Content-Type", contentType)
 	w.(http.Flusher).Flush()
 
@@ -66,7 +73,7 @@ func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 	blobChannel := make(chan []byte)
 	doneChannel := make(chan struct{})
 
-	go GetMultiPartBlob(blobChannel, doneChannel, addr, slot)
+	go GetMultiPartBlob(blobChannel, addr, slot)
 
 	fmt.Println("Waiting for blobChannel...")
 	for {
@@ -74,7 +81,7 @@ func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 		case result, ok := <-blobChannel:
 			if !ok {
 				fmt.Println("blobChannel is closed, break out of the loop")
-				break
+				return
 			}
 			fmt.Println("Blob received through channel")
 
