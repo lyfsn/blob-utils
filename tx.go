@@ -146,9 +146,9 @@ func MultiTxApp(cliCtx *cli.Context) error {
 				log.Fatalf("failed to send transaction: %v", err)
 			} else {
 				log.Printf("successfully sent transaction with %d blobs. Check https://blobscan.com/tx/%v", len(blobStruct.Sidecar.Blobs), signedTx.Hash())
-				for idxBlob, blob := range blobStruct.Sidecar.Blobs {
-					log.Printf("Blob #%d: Length=%d", idxBlob, len(blob))
-				}
+				//for idxBlob, blob := range blobStruct.Sidecar.Blobs {
+				//	log.Printf("Blob #%d: Size=%d", idxBlob, len(blob))
+				//}
 			}
 
 			var receipt *types.Receipt
@@ -167,7 +167,8 @@ func MultiTxApp(cliCtx *cli.Context) error {
 				}
 			}
 
-			log.Printf("Transaction included. nonce=%d hash=%v, block=%d, bloGasUsed=%d, blobGasPrice=%d", nonce, tx.Hash(), receipt.BlockNumber.Int64(), receipt.BlobGasUsed, receipt.BlobGasPrice)
+			log.Printf("Transaction included. nonce=%d, bloGasUsed=%d, blobGasPrice=%d. Check https://blobscan.com/block/%d", nonce, receipt.BlobGasUsed, receipt.BlobGasPrice, receipt.BlockNumber.Int64())
+			//log.Printf("Transaction included. nonce=%d hash=%v, block=%d, bloGasUsed=%d, blobGasPrice=%d", nonce, tx.Hash(), receipt.BlockNumber.Int64(), receipt.BlobGasUsed, receipt.BlobGasPrice)
 			totalBlobGasUsed += receipt.BlobGasUsed
 		}
 	}

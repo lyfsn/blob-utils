@@ -75,7 +75,6 @@ func encodeBlobsWithMagicHeader(data []byte) []kzg4844.Blob {
 		fieldIndex++
 	}
 
-	fmt.Println("Total blobs:", len(blobs))
 	return blobs
 }
 
@@ -129,12 +128,13 @@ func EncodeMultipartBlob(blobChannel chan<- FullBlobStruct, data []byte, blobsPe
 	)
 
 	if blobsPerTx > 8 {
-		fmt.Println("Max blobs per transaction is 8")
+		fmt.Println("Max blobs per transaction is 6")
 		close(blobChannel)
 		return
 	}
 
-	fmt.Println("Blobs per transaction:", blobsPerTx)
+	uploadSeconds := len(blobs) / blobsPerTx * 12
+	fmt.Printf("Total blobs: %d. Approximate upload time: %d seconds at %d blobs per tx\n", len(blobs), uploadSeconds, blobsPerTx)
 
 	for blobIndex, blob := range allBlobs {
 		blobs = append(blobs, blob)
