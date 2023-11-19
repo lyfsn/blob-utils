@@ -47,7 +47,7 @@ func encodeBlobsWithMagicHeader(data []byte) []kzg4844.Blob {
 
 	blobIndex := 0
 	fieldIndex := 0
-	seed := time.Now().UnixNano()
+	seed := uint64(time.Now().UnixNano())
 	magicHeader := generateMagicHeader(blobIndex, totalBlobs, seed)
 	copy(blobs[blobIndex][fieldIndex*32:], magicHeader)
 	// fmt.Printf("%d %d %x || %d\n", 0, fieldIndex, magicHeader, magicHeader)
@@ -101,10 +101,10 @@ func encodeBlobs(data []byte) []kzg4844.Blob {
 
 // magicHeader is a 32 bytes array containing a string we use to identify files splitted in multiple blobs
 // plus blobIndex and totalBlobs
-func generateMagicHeader(blobIndex, totalBlobs int, seed int64) []byte {
+func generateMagicHeader(blobIndex, totalBlobs int, seed uint64) []byte {
 
 	randomBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(randomBytes, uint64(seed))
+	binary.LittleEndian.PutUint64(randomBytes, seed)
 	magicHeader := make([]byte, 32)
 
 	copy(magicHeader, []byte{66, 108, 111, 98, 115, 65, 114, 101, 67, 111, 109, 105, 110, 103, 46, 1, 46, byte(blobIndex), 46, byte(totalBlobs), 46, 46, 46, 46})

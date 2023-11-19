@@ -18,14 +18,30 @@ type BlobResponse struct {
 	} `json:"data"`
 }
 
+func appendToFile(filename string, data []byte) error {
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // TODO: Endpoint http para enviar blobs
-// TODO: Join in one single file
-func GetMultiPartBlob(blobChannel chan<- []byte, addr string, initialSlot int) error {
+func GetMultiPartBlob(blobChannel chan<- []byte, addr string, initialSlot int, saveFiles bool) error {
 
 	var blobIndex, totalBlobs int
 	magicHeaderCustom := make([]byte, 8)
 
 	slot := initialSlot
+	filename := fmt.Sprintf("%d.blob", initialSlot)
+
 	for {
 		//fmt.Printf("Retrieving multi-part blob from slot %d\n", slot)
 		apiURL := fmt.Sprintf("%s/eth/v1/beacon/blob_sidecars/%d", addr, slot)
@@ -39,7 +55,8 @@ func GetMultiPartBlob(blobChannel chan<- []byte, addr string, initialSlot int) e
 
 		if resp.StatusCode != http.StatusOK {
 			fmt.Println("Received non-OK status code:", resp.StatusCode)
-			return err
+			slot++
+			continue
 		}
 
 		var responseObject BlobResponse
@@ -66,6 +83,9 @@ func GetMultiPartBlob(blobChannel chan<- []byte, addr string, initialSlot int) e
 
 			blobIndex = int(hexBytes[17])
 
+			//fmt.Printf("Magic header: %v\n", hexBytes[0:32])
+			//fmt.Printf("FULL BLOB:\n%v\n", hexBytes)
+
 			if blobIndex == 0 {
 				totalBlobs = int(hexBytes[19])
 				copy(magicHeaderCustom, hexBytes[24:32])
@@ -77,36 +97,35 @@ func GetMultiPartBlob(blobChannel chan<- []byte, addr string, initialSlot int) e
 				}
 			}
 
-			//fmt.Printf("Magic header: %v\n", hexBytes[0:32])
-			//fmt.Printf("FULL BLOB:\n%v\n", hexBytes)
-
 			cleanHexBytes := DecodeMagicBlob(hexBytes)
 
 			fmt.Printf("[SLOT %d] Received blob %d of %d with size=%d\n", slot, blobIndex+1, totalBlobs, len(cleanHexBytes))
 
 			blobChannel <- cleanHexBytes
 
-			filename := fmt.Sprintf("%d-%d.bin", initialSlot, blobIndex)
-			err = os.WriteFile(filename, cleanHexBytes, 0644)
-			if err != nil {
-				fmt.Println("Error writing to file:", err)
-				return err
+			if saveFiles {
+				err := appendToFile(filename, cleanHexBytes)
+				if err != nil {
+					fmt.Println("Error appending to file:", err)
+					return err
+				}
+				fmt.Printf("Blob content written to '%s' successfully.\n", filename)
 			}
 
-			fmt.Printf("Hex bytes written to '%s' file successfully.\n", filename)
+			if blobIndex+1 == totalBlobs {
+				fmt.Printf("%d blobs were retrieved in total\n", totalBlobs+1)
+				if saveFiles {
+					fmt.Printf("Hex bytes written to '%s' file successfully.\n", filename)
+				}
+				close(blobChannel)
+				return nil
+			}
 		}
 
-		if blobIndex == totalBlobs {
-			fmt.Printf("%d blobs were retrieved in total\n", totalBlobs+1)
-			break
-		}
 		slot++
 	}
 
 	//fmt.Println("Total blobs in this slot:", len(responseObject.Data))
-
-	close(blobChannel)
-	return nil
 }
 
 func DownloadApp(cliCtx *cli.Context) error {
@@ -117,7 +136,7 @@ func DownloadApp(cliCtx *cli.Context) error {
 
 	blobChannel := make(chan []byte)
 
-	go GetMultiPartBlob(blobChannel, addr, slot)
+	go GetMultiPartBlob(blobChannel, addr, slot, true)
 
 	for {
 		select {

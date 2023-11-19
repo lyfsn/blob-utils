@@ -79,7 +79,7 @@ func serveBlob(w http.ResponseWriter, r *http.Request, contentType string) {
 
 	blobChannel := make(chan []byte)
 
-	go GetMultiPartBlob(blobChannel, addr, slotNumber)
+	go GetMultiPartBlob(blobChannel, addr, slotNumber, false)
 
 	fmt.Println("Waiting for blobChannel...")
 	for {
