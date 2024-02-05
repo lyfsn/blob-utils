@@ -104,7 +104,7 @@ func TxApp(cliCtx *cli.Context) error {
 	if nonce == -1 {
 		pendingNonce, err := client.PendingNonceAt(ctx, crypto.PubkeyToAddress(key.PublicKey))
 		if err != nil {
-			log.Fatalf("Error getting nonce: %v", err)
+			log.Fatalf("Error getting nonce in main: %v", err)
 		}
 		nonce = int64(pendingNonce)
 	}

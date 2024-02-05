@@ -110,11 +110,19 @@ func MultipartUpload(params BlobUploadParams) (uint64, error) {
 				return initialSlot, nil
 			}
 
-			pendingNonce, err := client.PendingNonceAt(ctx, crypto.PubkeyToAddress(key.PublicKey))
+			address := crypto.PubkeyToAddress(key.PublicKey)
+			log.Println("Address:", address.String())
+
+			pendingNonce, err := client.PendingNonceAt(ctx, address)
 			if err != nil {
-				log.Fatalf("Error getting nonce: %v", err)
+				log.Fatalf("Error getting nonce in tx: %v", err)
 			}
 			nonce := uint64(pendingNonce)
+
+			if priorityGasPrice256.Cmp(gasPrice256) > 0 {
+				log.Println("Adjusting GasTipCap to be equal to GasFeeCap because GasTipCap was higher")
+				priorityGasPrice256 = gasPrice256
+			}
 
 			tx := types.NewTx(&types.BlobTx{
 				ChainID:    uint256.MustFromBig(chainId),
@@ -129,6 +137,18 @@ func MultipartUpload(params BlobUploadParams) (uint64, error) {
 				BlobHashes: blobStruct.VersionedHashes,
 				Sidecar:    &blobStruct.Sidecar,
 			})
+
+			log.Println("Tx params:")
+			log.Println("ChainID:", chainId)
+			log.Println("Nonce:", nonce)
+			log.Println("GasTipCap:", priorityGasPrice256.String())
+			log.Println("GasFeeCap:", gasPrice256.String())
+			log.Println("Gas:", params.GasLimit)
+			log.Println("To:", params.To.String())
+			log.Println("Value:", value256.String())
+			log.Println("Data:", calldataBytes)
+			log.Println("BlobFeeCap:", maxFeePerBlobGas256.String())
+
 			signedTx, err := types.SignTx(tx, types.NewCancunSigner(chainId), key)
 			if err != nil {
 				log.Fatalf("failed to sign tx: %v", err)
